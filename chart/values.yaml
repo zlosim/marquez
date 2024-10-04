@@ -200,6 +200,7 @@ ingress:
   hosts:
     - chart-example.local
   tls: []
+  xyz: test
   #  - secretName: chart-example-tls
   #    hosts:
   #      - chart-example.local
