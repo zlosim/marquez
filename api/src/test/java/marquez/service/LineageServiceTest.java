@@ -11,6 +11,7 @@ import static marquez.db.LineageTestUtils.writeDownstreamLineage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,7 +28,7 @@ import marquez.common.models.InputDatasetVersion;
 import marquez.common.models.JobId;
 import marquez.common.models.JobName;
 import marquez.common.models.NamespaceName;
-import marquez.common.models.OutputDatasetVersion;
+import marquez.common.models.RunState;
 import marquez.db.DatasetDao;
 import marquez.db.JobDao;
 import marquez.db.LineageDao;
@@ -35,6 +36,7 @@ import marquez.db.LineageTestUtils;
 import marquez.db.LineageTestUtils.DatasetConsumerJob;
 import marquez.db.LineageTestUtils.JobLineage;
 import marquez.db.OpenLineageDao;
+import marquez.db.RunDao;
 import marquez.db.models.UpdateLineageRow;
 import marquez.jdbi.MarquezJdbiExternalPostgresExtension;
 import marquez.service.LineageService.UpstreamRunLineage;
@@ -85,7 +87,8 @@ public class LineageServiceTest {
   public static void setUpOnce(Jdbi jdbi) {
     LineageServiceTest.jdbi = jdbi;
     lineageDao = jdbi.onDemand(LineageDao.class);
-    lineageService = new LineageService(lineageDao, jdbi.onDemand(JobDao.class));
+    lineageService =
+        new LineageService(lineageDao, jdbi.onDemand(JobDao.class), jdbi.onDemand(RunDao.class));
     openLineageDao = jdbi.onDemand(OpenLineageDao.class);
     datasetDao = jdbi.onDemand(DatasetDao.class);
     jobDao = jdbi.onDemand(JobDao.class);
@@ -135,8 +138,7 @@ public class LineageServiceTest {
         dataset);
     String jobName = writeJob.getJob().getName();
     Lineage lineage =
-        lineageService.lineage(
-            NodeId.of(new NamespaceName(NAMESPACE), new JobName(jobName)), 2, true);
+        lineageService.lineage(NodeId.of(new NamespaceName(NAMESPACE), new JobName(jobName)), 2);
 
     // 1 writeJob           + 1 commonDataset
     // 20 readJob           + 20 outputData
@@ -171,11 +173,6 @@ public class LineageServiceTest {
         .extracting(
             Run::getInputDatasetVersions, InstanceOfAssertFactories.list(InputDatasetVersion.class))
         .hasSize(0);
-    runAssert
-        .extracting(
-            Run::getOutputDatasetVersions,
-            InstanceOfAssertFactories.list(OutputDatasetVersion.class))
-        .hasSize(1);
 
     // check the output edges for the commonDataset node
     assertThat(lineage.getGraph())
@@ -205,7 +202,10 @@ public class LineageServiceTest {
                 new NamespaceName(NAMESPACE),
                 new DatasetName("outputData<-readJob0<-commonDataset")));
 
-    List<Job> jobs = jobDao.findAllWithRun(NAMESPACE, 1000, 0);
+    List<RunState> runStates = new ArrayList<>();
+    Collections.addAll(runStates, RunState.values());
+
+    List<Job> jobs = jobDao.findAllWithRun(NAMESPACE, runStates, 1000, 0);
     jobs =
         jobs.stream()
             .filter(j -> j.getName().getValue().contains("newDownstreamJob"))
@@ -268,8 +268,7 @@ public class LineageServiceTest {
 
     String jobName = writeJob.getJob().getName();
     Lineage lineage =
-        lineageService.lineage(
-            NodeId.of(new NamespaceName(NAMESPACE), new JobName(jobName)), 2, true);
+        lineageService.lineage(NodeId.of(new NamespaceName(NAMESPACE), new JobName(jobName)), 2);
 
     // 1 writeJob           + 0 commonDataset is hidden
     // 20 readJob           + 20 outputData
@@ -304,11 +303,6 @@ public class LineageServiceTest {
         .extracting(
             Run::getInputDatasetVersions, InstanceOfAssertFactories.list(InputDatasetVersion.class))
         .hasSize(0);
-    runAssert
-        .extracting(
-            Run::getOutputDatasetVersions,
-            InstanceOfAssertFactories.list(InputDatasetVersion.class))
-        .hasSize(1);
 
     // check the output edges for the commonDataset node
     assertThat(lineage.getGraph())
@@ -321,8 +315,7 @@ public class LineageServiceTest {
     jobDao.delete(NAMESPACE, "downstreamJob0<-outputData<-readJob0<-commonDataset");
 
     lineage =
-        lineageService.lineage(
-            NodeId.of(new NamespaceName(NAMESPACE), new JobName(jobName)), 2, true);
+        lineageService.lineage(NodeId.of(new NamespaceName(NAMESPACE), new JobName(jobName)), 2);
 
     // 1 writeJob           + 0 commonDataset is hidden
     // 20 readJob           + 20 outputData
@@ -352,9 +345,7 @@ public class LineageServiceTest {
             openLineageDao, "writeJob", "COMPLETE", jobFacet, Arrays.asList(), Arrays.asList());
     Lineage lineage =
         lineageService.lineage(
-            NodeId.of(new NamespaceName(NAMESPACE), new JobName(writeJob.getJob().getName())),
-            5,
-            true);
+            NodeId.of(new NamespaceName(NAMESPACE), new JobName(writeJob.getJob().getName())), 5);
     assertThat(lineage.getGraph())
         .hasSize(1)
         .first()
@@ -405,8 +396,7 @@ public class LineageServiceTest {
         lineageService.lineage(
             NodeId.of(
                 new NamespaceName(NAMESPACE), new JobName(intermediateJob.getJob().getName())),
-            5,
-            true);
+            5);
     assertThat(lineage.getGraph()).extracting(Node::getId).hasSize(6);
     ObjectAssert<Node> datasetNode =
         assertThat(lineage.getGraph())
@@ -488,15 +478,13 @@ public class LineageServiceTest {
         lineageService.lineage(
             NodeId.of(
                 new DatasetId(new NamespaceName(NAMESPACE), new DatasetName("input-dataset"))),
-            5,
-            true);
+            5);
 
     Lineage lineageFromOutput =
         lineageService.lineage(
             NodeId.of(
                 new DatasetId(new NamespaceName(NAMESPACE), new DatasetName("output-dataset"))),
-            5,
-            true);
+            5);
 
     assertThat(lineageFromInput.getGraph()).hasSize(3); // 2 datasets + 1 job
     assertThat(lineageFromInput.getGraph()).isEqualTo(lineageFromOutput.getGraph());
@@ -541,15 +529,13 @@ public class LineageServiceTest {
         lineageService.lineage(
             NodeId.of(
                 new DatasetId(new NamespaceName(NAMESPACE), new DatasetName("input-dataset"))),
-            5,
-            true);
+            5);
 
     Lineage lineageFromOutput =
         lineageService.lineage(
             NodeId.of(
                 new DatasetId(new NamespaceName(NAMESPACE), new DatasetName("output-dataset"))),
-            5,
-            true);
+            5);
 
     assertThat(lineageFromInput.getGraph()).hasSize(5); // 2 datasets + 3 jobs
     assertThat(lineageFromInput.getGraph()).isEqualTo(lineageFromOutput.getGraph());
@@ -584,8 +570,7 @@ public class LineageServiceTest {
         lineageService.lineage(
             NodeId.of(
                 new DatasetId(new NamespaceName(NAMESPACE), new DatasetName("output-dataset"))),
-            5,
-            true);
+            5);
 
     assertThat(lineage.getGraph()).hasSize(3); // 1 job + 2 datasets
   }
@@ -603,7 +588,7 @@ public class LineageServiceTest {
 
     NodeId datasetNodeId =
         NodeId.of(new NamespaceName(dataset.getNamespace()), new DatasetName(dataset.getName()));
-    Lineage lineage = lineageService.lineage(datasetNodeId, 2, false);
+    Lineage lineage = lineageService.lineage(datasetNodeId, 2);
     assertThat(lineage.getGraph())
         .hasSize(2)
         .extracting(Node::getId)
@@ -615,7 +600,7 @@ public class LineageServiceTest {
         LineageTestUtils.createLineageRow(
             openLineageDao, "writeJob", "COMPLETE", jobFacet, Arrays.asList(), Arrays.asList());
 
-    lineage = lineageService.lineage(datasetNodeId, 2, false);
+    lineage = lineageService.lineage(datasetNodeId, 2);
     assertThat(lineage.getGraph())
         .hasSize(1)
         .extracting(Node::getId)
@@ -680,8 +665,7 @@ public class LineageServiceTest {
         lineageService.lineage(
             NodeId.of(
                 new DatasetId(new NamespaceName(NAMESPACE), new DatasetName("symlinkDataset"))),
-            5,
-            true);
+            5);
 
     assertThat(lineage.getGraph()).hasSize(2);
   }

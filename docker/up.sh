@@ -8,9 +8,9 @@
 set -e
 
 # Version of Marquez
-readonly VERSION=0.49.0
+readonly VERSION=0.50.0
 # Build version of Marquez
-readonly BUILD_VERSION=0.49.0
+readonly BUILD_VERSION=0.50.0
 
 title() {
   echo -e "\033[1m${1}\033[0m"
@@ -36,11 +36,15 @@ usage() {
   echo "  # Set HTTP API server port"
   echo "  ./up.sh --api-port 9000"
   echo
+  echo "  # Set database port"
+  echo "  ./up.sh --db-port 2345"
+  echo
   title "ARGUMENTS:"
   echo "  -a, --api-port int          api port (default: 5000)"
   echo "  -m, --api-admin-port int    api admin port (default: 5001)"
   echo "  -w, --web-port int          web port (default: 3000)"
-  echo "  -e --search-port int        search port (default: 9200)"
+  echo "  -d, --db-port int           database port (default: 5432)"
+  echo "  -e, --search-port int       search port (default: 9200)"
   echo "  -t, --tag string            docker image tag (default: ${VERSION})"
   echo "  --args string               docker arguments"
   echo
@@ -66,7 +70,7 @@ compose_files="-f docker-compose.yml"
 API_PORT=5000
 API_ADMIN_PORT=5001
 WEB_PORT=3000
-POSTGRES_PORT=5432
+DB_PORT=5432
 SEARCH_PORT=9200
 NO_WEB="false"
 NO_SEARCH="false"
@@ -89,9 +93,9 @@ while [ $# -gt 0 ]; do
        shift
        WEB_PORT="${1}"
        ;;
-    -p|'--pg-port')
+    -d|'--db-port')
        shift
-       POSTGRES_PORT="${1}"
+       DB_PORT="${1}"
        ;;
     -e|'--search-port')
         shift
@@ -157,7 +161,7 @@ fi
 
 # Create docker volumes for Marquez
 if [[ "${NO_VOLUMES}" = "false" ]]; then
-  ./docker/volumes.sh marquez
+  ./docker/volumes.sh $(basename "$project_root")
 fi
 
 # Enable search in UI an API if search container is enabled
@@ -167,5 +171,5 @@ if [[ "${NO_SEARCH}" = "true" ]]; then
 fi
 
 # Run docker compose cmd with overrides
-DOCKER_SCAN_SUGGEST="false" API_PORT=${API_PORT} API_ADMIN_PORT=${API_ADMIN_PORT} WEB_PORT=${WEB_PORT} POSTGRES_PORT=${POSTGRES_PORT} SEARCH_ENABLED=${SEARCH_ENABLED} SEARCH_PORT=${SEARCH_PORT} TAG=${TAG} \
+DOCKER_SCAN_SUGGEST="false" API_PORT=${API_PORT} API_ADMIN_PORT=${API_ADMIN_PORT} WEB_PORT=${WEB_PORT} POSTGRES_PORT=${DB_PORT} SEARCH_ENABLED=${SEARCH_ENABLED} SEARCH_PORT=${SEARCH_PORT} TAG=${TAG} \
   docker --log-level ERROR compose $compose_files up $compose_args

@@ -8,15 +8,15 @@ import { TableLineageJobNodeData } from './nodes'
 import { connect } from 'react-redux'
 import { faCog } from '@fortawesome/free-solid-svg-icons/faCog'
 import { formatUpdatedAt } from '../../helpers'
+import { runStateColor } from '../../helpers/nodes'
 import { theme } from '../../helpers/theme'
-import { truncateText } from '../../helpers/text'
+import { truncateText, truncateTextFront } from '../../helpers/text'
 import { useNavigate, useParams } from 'react-router-dom'
 import Box from '@mui/system/Box'
 import MQTooltip from '../../components/core/tooltip/MQTooltip'
 import MqStatus from '../../components/core/status/MqStatus'
 import MqText from '../../components/core/text/MqText'
 import React from 'react'
-import {runStateColor} from "../../helpers/nodes";
 
 interface StateProps {
   lineage: LineageGraph
@@ -49,7 +49,7 @@ const TableLineageJobNode = ({ node }: TableLineageJobNodeProps & StateProps) =>
               Namespace:
             </MqText>
             <MqText block font={'mono'}>
-              {truncateText(job.namespace, 40)}
+              {truncateTextFront(job.namespace, 40)}
             </MqText>
           </Box>
           <Box display={'flex'} justifyContent={'space-between'}>
@@ -57,7 +57,7 @@ const TableLineageJobNode = ({ node }: TableLineageJobNodeProps & StateProps) =>
               Name:
             </MqText>
             <MqText block font={'mono'}>
-              {truncateText(job.name, 40)}
+              {truncateTextFront(job.name, 40)}
             </MqText>
           </Box>
           {job.description && (
@@ -85,7 +85,11 @@ const TableLineageJobNode = ({ node }: TableLineageJobNodeProps & StateProps) =>
             </MqText>
             <MqStatus
               label={job.latestRun?.state || 'N/A'}
-              color={job.latestRun?.state ? runStateColor(job.latestRun?.state) : theme.palette.primary.main}
+              color={
+                job.latestRun?.state
+                  ? runStateColor(job.latestRun?.state)
+                  : theme.palette.secondary.main
+              }
             />
           </Box>
         </Box>
@@ -118,10 +122,9 @@ const TableLineageJobNode = ({ node }: TableLineageJobNodeProps & StateProps) =>
         width={24}
         sx={{
           rx: 4,
-          fill:
-            node.data.job.latestRun?.state === 'COMPLETED'
-              ? theme.palette.primary.main
-              : theme.palette.error.main,
+          fill: node.data.job.latestRun
+            ? runStateColor(node.data.job.latestRun.state)
+            : theme.palette.secondary.main,
         }}
       />
       <FontAwesomeIcon

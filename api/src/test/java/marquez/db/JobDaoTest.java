@@ -5,8 +5,10 @@
 
 package marquez.db;
 
+import static marquez.common.models.CommonModelGenerator.newJobName;
 import static marquez.db.DbTestUtils.createJobWithSymlinkTarget;
 import static marquez.db.DbTestUtils.createJobWithoutSymlinkTarget;
+import static marquez.db.DbTestUtils.newJob;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -17,10 +19,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import marquez.common.models.JobName;
 import marquez.common.models.JobType;
+import marquez.common.models.RunState;
 import marquez.db.models.DbModelGenerator;
 import marquez.db.models.JobRow;
 import marquez.db.models.NamespaceRow;
@@ -106,7 +112,10 @@ public class JobDaoTest {
     JobRow anotherJobSameNamespace =
         createJobWithoutSymlinkTarget(jdbi, namespace, "anotherJob", "a random other job");
 
-    List<Job> jobs = jobDao.findAll(namespace.getName(), 10, 0);
+    List<RunState> runStates = new ArrayList<>();
+    Collections.addAll(runStates, RunState.values());
+
+    List<Job> jobs = jobDao.findAll(namespace.getName(), runStates, 10, 0);
 
     // the symlinked job isn't present in the response - only the symlink target and the job with
     // no symlink
@@ -116,6 +125,32 @@ public class JobDaoTest {
         .containsExactlyInAnyOrder(
             DbModelGenerator.jobIdFor(namespace.getName(), targetJob.getName()),
             DbModelGenerator.jobIdFor(namespace.getName(), anotherJobSameNamespace.getName()));
+  }
+
+  @Test
+  public void testFindAllWithNoNamespace() {
+    String nullNamespace = null;
+
+    List<RunState> runStates = new ArrayList<>();
+    Collections.addAll(runStates, RunState.values());
+
+    final List<Job> jobsWillBeEmpty = jobDao.findAll(nullNamespace, runStates, 10, 0);
+    assertThat(jobsWillBeEmpty).isEmpty();
+
+    JobName jobName0 = newJobName();
+    JobName jobName1 = newJobName();
+    JobName jobName2 = newJobName();
+
+    JobRow job0 = newJob(jdbi, jobName0.getValue());
+    JobRow job1 = newJob(jdbi, jobName1.getValue());
+    JobRow job2 = newJob(jdbi, jobName2.getValue());
+
+    final List<Job> jobsWillNotBeEmpty = jobDao.findAll(nullNamespace, runStates, 10, 0);
+    assertThat(jobsWillNotBeEmpty)
+        .isNotEmpty()
+        .hasSize(3)
+        .extracting(Job::getName)
+        .containsExactlyInAnyOrder(jobName0, jobName1, jobName2);
   }
 
   @Test
@@ -206,7 +241,8 @@ public class JobDaoTest {
             null,
             null,
             null,
-            inputs);
+            inputs,
+            null);
 
     String childJob2Name = "child2";
     JobRow childJob2 =
@@ -221,7 +257,8 @@ public class JobDaoTest {
             null,
             null,
             null,
-            inputs);
+            inputs,
+            null);
 
     // the job queried is returned, since there is no symlink
     String jobFqn = parentJobName + "." + childJob1Name;

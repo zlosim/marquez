@@ -64,6 +64,7 @@ i18next
             no_outputs: 'No outputs for this node.',
           },
           sidenav: {
+            dataOps: 'DATAOPS',
             jobs: 'JOBS',
             datasets: 'DATASETS',
             events: 'EVENTS',
@@ -150,7 +151,7 @@ i18next
             empty_body: 'Try changing dates or consulting our documentation to add events.',
           },
           events_columns: {
-            id: 'ID',
+            id: 'RUN_ID',
             state: 'STATE',
             name: 'NAME',
             namespace: 'NAMESPACE',

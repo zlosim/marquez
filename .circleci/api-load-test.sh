@@ -14,7 +14,7 @@
 set -e
 
 # Build version of Marquez
-readonly MARQUEZ_VERSION=0.50.0-SNAPSHOT
+readonly MARQUEZ_VERSION=0.51.0-SNAPSHOT
 # Fully qualified path to marquez.jar
 readonly MARQUEZ_JAR="api/build/libs/marquez-api-${MARQUEZ_VERSION}.jar"
 
@@ -99,7 +99,7 @@ log "http API server is ready!"
 
 # (5) Use metadata command to generate random dataset, job, and run metadata
 log "generate load test metadata (${METADATA_FILE}):"
-java -jar "${MARQUEZ_JAR}" metadata --runs 10 --bytes-per-event 16384 --output "${METADATA_FILE}"
+java -jar "${MARQUEZ_JAR}" metadata --jobs 100 --bytes-per-event 16384 --output "${METADATA_FILE}"
 
 # Display CPU/MEM
 cpu_and_mem_info

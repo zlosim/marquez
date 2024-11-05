@@ -12,7 +12,10 @@ import com.codahale.metrics.annotation.ResponseMetered;
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import javax.validation.Valid;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotNull;
@@ -42,6 +45,7 @@ import marquez.common.models.FacetType;
 import marquez.common.models.JobName;
 import marquez.common.models.NamespaceName;
 import marquez.common.models.RunId;
+import marquez.common.models.RunState;
 import marquez.common.models.TagName;
 import marquez.common.models.Version;
 import marquez.db.JobFacetsDao;
@@ -160,16 +164,37 @@ public class JobResource extends BaseResource {
   @ResponseMetered
   @ExceptionMetered
   @GET
+  @Path("/jobs")
+  @Produces(APPLICATION_JSON)
+  public Response list(
+      @QueryParam("lastRunStates") List<RunState> lastRunStates,
+      @QueryParam("limit") @DefaultValue("100") @Min(value = 0) int limit,
+      @QueryParam("offset") @DefaultValue("0") @Min(value = 0) int offset) {
+    return list(null, lastRunStates, limit, offset);
+  }
+
+  @Timed
+  @ResponseMetered
+  @ExceptionMetered
+  @GET
   @Path("/namespaces/{namespace}/jobs")
   @Produces(APPLICATION_JSON)
   public Response list(
       @PathParam("namespace") NamespaceName namespaceName,
+      @QueryParam("lastRunStates") List<RunState> lastRunStates,
       @QueryParam("limit") @DefaultValue("100") @Min(value = 0) int limit,
       @QueryParam("offset") @DefaultValue("0") @Min(value = 0) int offset) {
-    throwIfNotExists(namespaceName);
+    final Optional<NamespaceName> namespaceOrNull = Optional.ofNullable(namespaceName);
+    final String namespace = namespaceOrNull.map(NamespaceName::getValue).orElse(null);
 
-    final List<Job> jobs = jobService.findAllWithRun(namespaceName.getValue(), limit, offset);
-    final int totalCount = jobService.countFor(namespaceName.getValue());
+    // default to all run states if not specified
+    if (lastRunStates.isEmpty()) {
+      lastRunStates = new ArrayList<>();
+      Collections.addAll(lastRunStates, RunState.values());
+    }
+
+    final List<Job> jobs = jobService.findAllWithRun(namespace, lastRunStates, limit, offset);
+    final int totalCount = jobService.countFor(namespace);
     return Response.ok(new ResultsPage<>("jobs", jobs, totalCount)).build();
   }
 
